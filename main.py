@@ -1,17 +1,18 @@
-"""astrbot_plugin_flood_guard — repeat-message flood guard with auto-mute.
+"""astrbot_plugin_flood_guard — group flood guard with auto-mute.
 
 Detection:
-- Default "repeater mode": the SAME message repeated >= threshold within a window triggers.
-- Set same_message_only=false to fall back to "any N messages within the window".
+- Default "count mode": ANY N messages within the window trigger a mute.
+- Set same_message_only=true (or /flood mode same) for repeater mode: only the
+  SAME message repeated >= threshold triggers.
 
 Config sources: the plugin config page (_conf_schema.json) + per-group overrides (KV).
 
 Command entry point is a SINGLE flat command to stay robust across AstrBot versions:
 
-    /flood [help|status|limit N|window S|mute S|notice TEXT|reset]
+    /flood [help|status|mode same|any|limit N|window S|mute S|notice TEXT|reset]
 
-Note: in group chats the bot must be woken first — either use the wake prefix
-(default "/") or @ the bot.
+Group chats: no explicit wake prefix is required (the command is also handled by
+the group-message handler). Private chats are ignored.
 """
 
 from __future__ import annotations
@@ -106,7 +107,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.6.3",
+    "v0.6.4",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -150,7 +151,7 @@ class FloodGuardPlugin(Star):
                 value = override.get(key)
                 if value not in (None, ""):
                     cfg[key] = value
-        cfg["same_message_only"] = bool(cfg.get("same_message_only", True))
+        cfg["same_message_only"] = bool(cfg.get("same_message_only", False))
         cfg["window_seconds"] = max(1, _as_int(cfg["window_seconds"], 5))
         cfg["max_messages"] = max(1, _as_int(cfg["max_messages"], 10))
         cfg["mute_seconds"] = max(0, _as_int(cfg["mute_seconds"], 600))
@@ -286,7 +287,7 @@ class FloodGuardPlugin(Star):
             return "o:" + str(comp)
 
     def _message_key(self, event: AstrMessageEvent) -> str:
-        if not bool(self.config.get("same_message_only", True)):
+        if not bool(self.config.get("same_message_only", False)):
             return ANY_KEY
         sigs = []
         for comp in event.get_messages() or []:
@@ -608,7 +609,7 @@ class FloodGuardPlugin(Star):
             return "该指令仅在群聊中可用。"
         cfg = await self._effective_cfg(group_id)
         override = await self.get_kv_data(KV_PREFIX + group_id, None) or {}
-        same_only = bool(cfg.get("same_message_only", True))
+        same_only = bool(cfg.get("same_message_only", False))
         only_chat = bool(self.config.get("only_chat_messages", True))
         return "\n".join(
             [
