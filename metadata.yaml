@@ -1,10 +1,11 @@
 name: astrbot_plugin_flood_guard
 display_name: 刷屏守卫
-short_desc: 群刷屏检测与自动禁言，支持全局 + 单群阈值与自定义播报文案
+short_desc: 同一条消息重复刷屏自动禁言，支持全局 + 单群阈值与自定义播报文案
 desc: |
-  群消息频率超过阈值时自动禁言。阈值、统计窗口、禁言时长与播报文案均可在插件配置页设置，
+  在时间窗口内检测同一条消息的重复次数，达到阈值自动禁言。
+  阈值、统计窗口、禁言时长与播报文案均可在插件配置页设置，
   也可在 QQ 群内通过 /刷屏 指令对单个群单独覆盖。
-version: v0.1.0
+version: v0.2.0
 author: MeowAndy
 repo: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard
 astrbot_version: ">=4.16,<5"

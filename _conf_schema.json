@@ -4,6 +4,18 @@
     "description": "i18n:config.enabled.description",
     "default": true
   },
+  "same_message_only": {
+    "type": "bool",
+    "description": "i18n:config.same_message_only.description",
+    "hint": "i18n:config.same_message_only.hint",
+    "default": true
+  },
+  "only_chat_messages": {
+    "type": "bool",
+    "description": "i18n:config.only_chat_messages.description",
+    "hint": "i18n:config.only_chat_messages.hint",
+    "default": true
+  },
   "window_seconds": {
     "type": "int",
     "description": "i18n:config.window_seconds.description",
@@ -25,6 +37,12 @@
       "max": 100,
       "step": 1
     }
+  },
+  "text_normalize": {
+    "type": "bool",
+    "description": "i18n:config.text_normalize.description",
+    "hint": "i18n:config.text_normalize.hint",
+    "default": true
   },
   "mute_seconds": {
     "type": "int",
@@ -55,7 +73,7 @@
     "type": "text",
     "description": "i18n:config.notify_template.description",
     "hint": "i18n:config.notify_template.hint",
-    "default": "{at} 你在 {window} 秒内发送了 {count} 条消息，达到阈值，已被禁言 {mute_text}。"
+    "default": "{at} 你在 {window} 秒内发送了 {count} 条相同消息，达到阈值，已被禁言 {mute_text}。"
   },
   "exempt_admins": {
     "type": "bool",

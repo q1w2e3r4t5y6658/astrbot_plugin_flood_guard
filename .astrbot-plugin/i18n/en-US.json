@@ -1,20 +1,32 @@
 {
   "metadata": {
     "display_name": "Flood Guard",
-    "short_desc": "Detect message flooding and mute automatically; global + per-group thresholds and custom notice text",
-    "desc": "Automatically mutes users who exceed the message threshold. Thresholds, window, mute duration and the notice template can be configured from the plugin page, or overridden per group in QQ via the /刷屏 commands."
+    "short_desc": "Mute users who repeat the same message; global + per-group thresholds and custom notice text",
+    "desc": "Counts how many times the same message is repeated within a time window and mutes when the threshold is reached. Thresholds, window, mute duration and the notice template can be configured from the plugin page, or overridden per group in QQ via the /刷屏 commands."
   },
   "config": {
     "enabled": {
       "description": "Enable flood detection"
     },
+    "same_message_only": {
+      "description": "Only count repeats of the same message",
+      "hint": "On: trigger only when the same content repeats to the threshold. Off: any N messages in the window trigger"
+    },
+    "only_chat_messages": {
+      "description": "Only count real chat messages",
+      "hint": "When off, notice events (recall, admin changes, joins, poke, etc.) are counted too"
+    },
     "window_seconds": {
       "description": "Counting window (seconds)",
-      "hint": "Messages are counted within this time window"
+      "hint": "Repeats of the same message are counted within this window"
     },
     "max_messages": {
-      "description": "Messages within the window that trigger a mute",
-      "hint": "Triggers when reached; 8-15 recommended"
+      "description": "Repeats of the same message that trigger a mute",
+      "hint": "Triggers when reached; total message count when same_message_only is off"
+    },
+    "text_normalize": {
+      "description": "Ignore case and whitespace when comparing text",
+      "hint": "Treats \"hahaha\" and \"ha haha\" as the same message"
     },
     "mute_seconds": {
       "description": "Mute duration (seconds)",

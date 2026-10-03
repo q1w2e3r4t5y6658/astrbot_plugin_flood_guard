@@ -1,14 +1,19 @@
 """astrbot_plugin_flood_guard —— 群刷屏检测与自动禁言。
 
-设计要点：
-- 全局阈值：AstrBot 插件配置页（_conf_schema.json）。
-- 单群覆盖：群内指令 /刷屏 ...，存于插件隔离 KV。
-- 禁言播报文案：全局与单群均可自定义，支持占位符。
+检测语义：
+- 默认「复读机模式」：**同一条内容**在窗口内重复达到阈值才触发（same_message_only=true）。
+- 可切换「条数模式」：窗口内任意消息达到阈值即触发（same_message_only=false）。
+- 「同一条」的判定：对消息链里的内容段做归一化签名（文本去空白/大小写、图片取 file/url、
+  表情取 id、卡片取 data、合并不参与签名等），忽略 Reply 这类上下文段。
+
+配置来源：全局插件配置页（_conf_schema.json）+ 单群 KV 覆盖（/刷屏 指令）。
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 import time
 from collections import defaultdict, deque
 
@@ -27,10 +32,14 @@ except Exception:  # pragma: no cover - 兼容旧版本，实际文本由 _extra
 
 PLUGIN_ID = "astrbot_plugin_flood_guard"
 KV_PREFIX = "group_cfg:"
+ANY_KEY = "__any__"
 DEFAULT_TEMPLATE = (
-    "{at} 你在 {window} 秒内发送了 {count} 条消息，达到阈值，已被禁言 {mute_text}。"
+    "{at} 你在 {window} 秒内发送了 {count} 条相同消息，达到阈值，已被禁言 {mute_text}。"
 )
+# 可被单群覆盖的键
 OVERRIDE_KEYS = ("window_seconds", "max_messages", "mute_seconds", "notify_template")
+# 不参与「相同消息」签名的上下文段
+IGNORED_SEGMENTS = {"Reply"}
 
 
 def _as_int(value, default: int) -> int:
@@ -70,16 +79,16 @@ def human_duration(seconds: int) -> str:
 @register(
     PLUGIN_ID,
     "MeowAndy",
-    "群刷屏检测与自动禁言：全局 + 单群阈值，可自定义播报文案",
-    "v0.1.0",
+    "群刷屏检测与自动禁言：同一条消息重复触发，全局 + 单群阈值，可自定义播报文案",
+    "v0.2.0",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-        # group_id -> user_id -> deque[monotonic 时间戳]
-        self._hits: dict[str, dict[str, deque]] = defaultdict(
-            lambda: defaultdict(deque)
+        # group_id -> user_id -> { 内容签名: deque[monotonic 时间戳] }
+        self._hits: dict[str, dict[str, dict[str, deque]]] = defaultdict(
+            lambda: defaultdict(dict)
         )
         # (group_id, user_id) -> 冷却截止时间
         self._cooldown: dict[tuple[str, str], float] = {}
@@ -129,6 +138,59 @@ class FloodGuardPlugin(Star):
         return override
 
     # ------------------------------------------------------------------ #
+    # 「相同消息」签名
+    # ------------------------------------------------------------------ #
+    def _normalize_text(self, text: str) -> str:
+        if bool(self.config.get("text_normalize", True)):
+            return re.sub(r"\s+", "", text).lower()
+        return text
+
+    def _component_sig(self, comp) -> str | None:
+        ctype = getattr(comp, "type", None)
+        name = str(getattr(ctype, "value", ctype) or "")
+        if name in IGNORED_SEGMENTS:
+            return None
+        if name == "Plain":
+            return "t:" + self._normalize_text(str(getattr(comp, "text", "") or ""))
+        if name == "Image":
+            ident = (
+                getattr(comp, "file", None)
+                or getattr(comp, "url", None)
+                or getattr(comp, "path", None)
+                or ""
+            )
+            return "i:" + str(ident)
+        if name == "Face":
+            return "f:" + str(getattr(comp, "id", "") or "")
+        if name in ("Record", "Video", "File"):
+            return "m:" + str(
+                getattr(comp, "file", None) or getattr(comp, "url", None) or ""
+            )
+        if name in ("Json", "Share", "Music", "Location", "Contact"):
+            data = getattr(comp, "data", None) or getattr(comp, "url", None) or ""
+            return "c:" + str(data)
+        if name == "Poke":
+            return "p:" + str(getattr(comp, "id", "") or getattr(comp, "qq", "") or "")
+        if name in ("Forward", "Node", "Nodes"):
+            return "fw:" + str(getattr(comp, "id", "") or "")
+        try:
+            payload = comp.toDict() if hasattr(comp, "toDict") else {}
+            return "o:" + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        except Exception:  # noqa: BLE001
+            return "o:" + str(comp)
+
+    def _message_key(self, event: AstrMessageEvent) -> str:
+        """把一条消息压成可比较的签名；空签名表示不作为刷屏内容统计。"""
+        if not bool(self.config.get("same_message_only", True)):
+            return ANY_KEY
+        sigs = []
+        for comp in event.get_messages() or []:
+            sig = self._component_sig(comp)
+            if sig:
+                sigs.append(sig)
+        return "|".join(sigs)
+
+    # ------------------------------------------------------------------ #
     # 事件：群消息计数
     # ------------------------------------------------------------------ #
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE, priority=100)
@@ -148,6 +210,17 @@ class FloodGuardPlugin(Star):
         if user_id in _as_list(self.config.get("whitelist")):
             return
 
+        # notice 类事件（撤回/管理变更/入群等）也会是 GROUP_MESSAGE；
+        # only_chat_messages=true 时只统计真正的聊天消息。
+        if bool(self.config.get("only_chat_messages", True)):
+            raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
+            if isinstance(raw, dict) and raw.get("post_type") not in (None, "message"):
+                return
+
+        key = self._message_key(event)
+        if not key:
+            return
+
         cfg = await self._effective_cfg(group_id)
         now = time.monotonic()
         cooldown_key = (group_id, user_id)
@@ -155,21 +228,26 @@ class FloodGuardPlugin(Star):
             return
 
         bucket = self._hits[group_id][user_id]
-        bucket.append(now)
-        cutoff = now - cfg["window_seconds"]
-        while bucket and bucket[0] < cutoff:
-            bucket.popleft()
+        dq = bucket.get(key)
+        if dq is None:
+            dq = deque()
+            bucket[key] = dq
+        dq.append(now)
 
-        count = len(bucket)
+        cutoff = now - cfg["window_seconds"]
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+
+        count = len(dq)
         if count < cfg["max_messages"]:
             return
 
-        bucket.clear()
+        bucket.clear()  # 触发后清空该用户本轮全部签名，避免二次误伤
         self._cooldown[cooldown_key] = now + cfg["cooldown_seconds"]
 
         muted = await self._mute(event, group_id, user_id, cfg["mute_seconds"])
         logger.info(
-            "[flood_guard] 群 %s 用户 %s 在 %ss 内触发 %s 条，禁言 %ss -> %s",
+            "[flood_guard] 群 %s 用户 %s 在 %ss 内重复同一条消息 %s 次，禁言 %ss -> %s",
             group_id,
             user_id,
             cfg["window_seconds"],
@@ -268,7 +346,7 @@ class FloodGuardPlugin(Star):
         yield event.plain_result(
             "刷屏守卫用法（管理员）：\n"
             "/刷屏 状态 —— 查看本群生效配置\n"
-            "/刷屏 阈值 <条数> —— 窗口内达到多少条触发禁言\n"
+            "/刷屏 阈值 <条数> —— 同一条消息重复多少条触发禁言\n"
             "/刷屏 窗口 <秒> —— 统计窗口长度\n"
             "/刷屏 禁言 <秒> —— 禁言时长\n"
             "/刷屏 提示 <文案> —— 自定义本群播报文案\n"
@@ -285,8 +363,12 @@ class FloodGuardPlugin(Star):
             return
         cfg = await self._effective_cfg(group_id)
         override = await self.get_kv_data(KV_PREFIX + group_id, None) or {}
+        same_only = bool(self.config.get("same_message_only", True))
+        only_chat = bool(self.config.get("only_chat_messages", True))
         lines = [
             f"本群（{group_id}）刷屏守卫：",
+            f"模式：{'同一条消息重复触发' if same_only else '任意消息条数触发'}",
+            f"统计范围：{'仅聊天消息' if only_chat else '包含撤回/管理变更等事件'}",
             f"窗口：{cfg['window_seconds']} 秒",
             f"阈值：{cfg['max_messages']} 条（达到即禁言）",
             f"禁言：{human_duration(cfg['mute_seconds'])}",
@@ -306,7 +388,7 @@ class FloodGuardPlugin(Star):
             yield event.plain_result("阈值至少为 1。")
             return
         await self._update_group(group_id, "max_messages", int(n))
-        yield event.plain_result(f"✅ 本群阈值已设为 {n} 条。")
+        yield event.plain_result(f"✅ 本群阈值已设为 {n} 条（同一条消息重复）。")
 
     @flood_group.command("窗口")
     @filter.permission_type(PermissionType.ADMIN)
@@ -344,7 +426,7 @@ class FloodGuardPlugin(Star):
         template = (self._extract_remainder(event, "提示") or str(text)).strip()
         if not template:
             yield event.plain_result(
-                "用法：/刷屏 提示 {at} 别刷屏了，禁言 {mute_text}"
+                "用法：/刷屏 提示 {at} 别复读了，禁言 {mute_text}"
             )
             return
         await self._update_group(group_id, "notify_template", template)
@@ -372,8 +454,12 @@ class FloodGuardPlugin(Star):
                     users = self._hits[group_id]
                     for user_id in list(users.keys()):
                         bucket = users[user_id]
-                        while bucket and now - bucket[0] > 3600:
-                            bucket.popleft()
+                        for key in list(bucket.keys()):
+                            dq = bucket[key]
+                            while dq and now - dq[0] > 3600:
+                                dq.popleft()
+                            if not dq:
+                                bucket.pop(key, None)
                         if not bucket:
                             users.pop(user_id, None)
                     if not users:

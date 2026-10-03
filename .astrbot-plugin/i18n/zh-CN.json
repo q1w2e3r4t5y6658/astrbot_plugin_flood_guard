@@ -1,20 +1,32 @@
 {
   "metadata": {
     "display_name": "刷屏守卫",
-    "short_desc": "群刷屏检测与自动禁言，支持全局 + 单群阈值与自定义播报文案",
-    "desc": "群消息频率超过阈值时自动禁言。阈值、统计窗口、禁言时长与播报文案均可在插件配置页设置，也可在 QQ 群内通过 /刷屏 指令对单个群单独覆盖。"
+    "short_desc": "同一条消息重复刷屏自动禁言，支持全局 + 单群阈值与自定义播报文案",
+    "desc": "在时间窗口内检测同一条消息的重复次数，达到阈值自动禁言。阈值、窗口、禁言时长与播报文案均可在插件配置页设置，也可在 QQ 群内通过 /刷屏 指令对单个群单独覆盖。"
   },
   "config": {
     "enabled": {
       "description": "启用刷屏检测"
     },
+    "same_message_only": {
+      "description": "仅统计「同一条消息」的重复",
+      "hint": "开：复读机模式，同一条内容重复达到阈值才触发；关：窗口内任意消息达到阈值即触发"
+    },
+    "only_chat_messages": {
+      "description": "仅统计真正的聊天消息",
+      "hint": "关闭后撤回、管理变更、入群、戳一戳等 notice 事件也会计入"
+    },
     "window_seconds": {
       "description": "统计窗口（秒）",
-      "hint": "在该时间窗口内统计消息条数"
+      "hint": "在该时间窗口内统计同一条消息的重复次数"
     },
     "max_messages": {
-      "description": "窗口内消息数达到多少条触发禁言",
-      "hint": "达到即触发，建议 8~15"
+      "description": "同一条消息重复多少条触发禁言",
+      "hint": "达到即触发；same_message_only 关闭时为窗口内总条数"
+    },
+    "text_normalize": {
+      "description": "文本比对时忽略大小写与空白",
+      "hint": "让「哈哈哈」和「哈 哈哈」视为同一条"
     },
     "mute_seconds": {
       "description": "禁言时长（秒）",
