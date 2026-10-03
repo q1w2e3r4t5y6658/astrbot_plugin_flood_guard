@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "刷屏守卫",
-    "short_desc": "同一条消息重复刷屏自动禁言，含群管理员权限校验与自定义播报文案",
-    "desc": "在时间窗口内检测同一条消息的重复次数，达到阈值自动禁言。阈值、窗口、禁言时长与播报文案均可在插件配置页设置，也可在 QQ 群内由群管理员/机器人管理员通过 /刷屏 指令对单个群单独覆盖。"
+    "short_desc": "群刷屏检测与自动禁言；阈值/窗口/时长/播报文案均可自定义",
+    "desc": "在时间窗口内统计消息条数（默认任意消息，也可切换为只统计同一条消息），达到阈值自动禁言。阈值、窗口、禁言时长与播报文案均可在插件配置页设置，也可在 QQ 群内由群管理员通过 /flood 命令对单个群单独覆盖。命令为英文，说明文档与群内回复为中文。"
   },
   "config": {
     "enabled": {
@@ -10,7 +10,7 @@
     },
     "same_message_only": {
       "description": "仅统计「同一条消息」的重复",
-      "hint": "开：同一条内容重复达到阈值才触发；关：窗口内任意消息达到阈值即触发"
+      "hint": "开：同一条内容重复达到阈值才触发；关（默认）：窗口内任意消息达到阈值即触发"
     },
     "only_chat_messages": {
       "description": "仅统计真正的聊天消息",
@@ -20,15 +20,15 @@
       "description": "统计窗口（秒）"
     },
     "max_messages": {
-      "description": "同一条消息重复多少条触发禁言",
-      "hint": "达到即触发；same_message_only 关闭时为窗口内总条数"
+      "description": "达到多少条触发禁言",
+      "hint": "达到即触发；same_message_only 开启时按同一条消息计数，关闭时按窗口内总条数"
     },
     "text_normalize": {
       "description": "文本比对时忽略大小写与空白"
     },
     "mute_seconds": {
       "description": "禁言时长（秒）",
-      "hint": "0 表示不实际禁言（仅计数与播报）"
+      "hint": "0 表示不实际禁言（仅计数）"
     },
     "cooldown_seconds": {
       "description": "同一用户触发后的冷却时间（秒）"
@@ -42,7 +42,7 @@
     },
     "manage_permission": {
       "description": "谁可以修改本群设置",
-      "hint": "控制 /刷屏 阈值|窗口|禁言|提示|重置 的权限",
+      "hint": "控制 /flood mode|limit|window|mute|notice|reset 的权限",
       "options": {
         "both": "群管理员或机器人管理员",
         "group_admin": "仅群主/群管理员",
@@ -52,7 +52,7 @@
     },
     "manage_users": {
       "description": "额外允许管理本群设置的用户 ID",
-      "hint": "不受 manage_permission 限制的白名单"
+      "hint": "不受 manage_permission 限制"
     },
     "exempt_group_admins": {
       "description": "群主/群管理员豁免刷屏检测",
@@ -61,7 +61,7 @@
   },
   "commands": {
     "flood": {
-      "description": "刷屏守卫指令组"
+      "description": "刷屏守卫：/flood status | mode | limit | window | mute | notice | reset"
     }
   }
 }

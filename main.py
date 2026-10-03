@@ -106,7 +106,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.6.2",
+    "v0.6.3",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -608,7 +608,7 @@ class FloodGuardPlugin(Star):
             return "该指令仅在群聊中可用。"
         cfg = await self._effective_cfg(group_id)
         override = await self.get_kv_data(KV_PREFIX + group_id, None) or {}
-        same_only = bool(self.config.get("same_message_only", True))
+        same_only = bool(cfg.get("same_message_only", True))
         only_chat = bool(self.config.get("only_chat_messages", True))
         return "\n".join(
             [

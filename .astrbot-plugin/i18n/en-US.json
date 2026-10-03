@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "Flood Guard",
-    "short_desc": "Mute users who repeat the same message; group-admin aware permissions and custom notice text",
-    "desc": "Counts repeats of the same message within a time window and mutes when the threshold is reached. Thresholds, window, mute duration and the notice template can be configured from the plugin page, or overridden per group in QQ by group admins / bot admins via the /刷屏 commands."
+    "short_desc": "Group flood detection with auto-mute; threshold, window, duration and notice text all configurable",
+    "desc": "Counts messages within a time window (any message by default, or same-message-only mode) and mutes when the threshold is reached. Threshold, window, mute duration and the notice template can be set on the plugin config page, or overridden per group in QQ by group admins via the /flood command. Commands are English; docs and in-chat replies are Chinese."
   },
   "config": {
     "enabled": {
@@ -10,7 +10,7 @@
     },
     "same_message_only": {
       "description": "Only count repeats of the same message",
-      "hint": "On: trigger only when the same content repeats to the threshold. Off: any N messages in the window trigger"
+      "hint": "On: trigger only when the same content repeats to the threshold. Off (default): any N messages in the window trigger"
     },
     "only_chat_messages": {
       "description": "Only count real chat messages",
@@ -20,15 +20,15 @@
       "description": "Counting window (seconds)"
     },
     "max_messages": {
-      "description": "Repeats of the same message that trigger a mute",
-      "hint": "Triggers when reached; total message count when same_message_only is off"
+      "description": "Message count that triggers a mute",
+      "hint": "Triggers when reached; counts same-message repeats when same_message_only is on, otherwise total messages in the window"
     },
     "text_normalize": {
       "description": "Ignore case and whitespace when comparing text"
     },
     "mute_seconds": {
       "description": "Mute duration (seconds)",
-      "hint": "0 means only count and notify, no real mute"
+      "hint": "0 means count only, no real mute"
     },
     "cooldown_seconds": {
       "description": "Cooldown per user after triggering (seconds)"
@@ -42,9 +42,9 @@
     },
     "manage_permission": {
       "description": "Who may change this group's settings",
-      "hint": "Controls /刷屏 阈值|窗口|禁言|提示|重置",
+      "hint": "Controls /flood mode|limit|window|mute|notice|reset",
       "options": {
-        "both": "Group admins or bot admins",
+        "both": "Group owner/admins or bot admins",
         "group_admin": "Group owner/admins only",
         "astrbot_admin": "Bot admins only",
         "everyone": "Everyone (not recommended)"
@@ -61,7 +61,7 @@
   },
   "commands": {
     "flood": {
-      "description": "Flood guard command group"
+      "description": "Flood Guard: /flood status | mode | limit | window | mute | notice | reset"
     }
   }
 }
