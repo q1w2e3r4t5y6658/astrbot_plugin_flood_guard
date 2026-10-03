@@ -122,23 +122,6 @@ AstrBot 的**指令组 + 子指令**由框架预编译的指令树分发，且�
 2. 在 WebUI 插件管理里启用并配置。
 3. 确保机器人在目标群里是**群主或管理员**。
 
-## 发布到官方插件市场
-
-> AstrBot 官方说明：旧仓库 `AstrBotDevs/AstrBot_Plugins_Collection` **已废弃**，现在统一在
-> **[https://cloud.astrbot.app/publish](https://cloud.astrbot.app/publish)** 提交（需要注册 AstrBot Cloud 账号）。
-
-1. 插件已推送到 GitHub 仓库：`https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard`
-2. 打开 [https://cloud.astrbot.app/publish](https://cloud.astrbot.app/publish)，注册/登录。
-3. 填写插件仓库地址，提交。
-4. 平台会自动解析 `metadata.yaml`（name / display_name / desc / version / author / repo / astrbot_version / support_platforms / tags），CI 校验通过后收录。
-5. **后续更新**：改 `metadata.yaml` 的 `version` 并 push 到 `main` 即可；`author` 与 `name` 不要改（`plugin_id = author/name`，改了会被当成新插件）。
-
-注意事项（来自官方文档）：
-
-- 插件 zip **不得超过 16MB**（本插件约 20KB，远低于限制）。
-- 仓库里不要包含 `.git`、`__pycache__`、`node_modules` 等无关文件（本仓库已配 `.gitignore`）。
-- 在 `metadata.yaml` 里声明 `support_platforms` 与 `tags`，便于市场分类与搜索（已配置）。
-
 ## License
 
 MIT
