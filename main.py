@@ -97,7 +97,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.4.3",
+    "v0.5.0",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -277,6 +277,14 @@ class FloodGuardPlugin(Star):
         if user_id in _as_list(self.config.get("whitelist")):
             return
 
+        # 群内命令兜底：不依赖唤醒前缀 / @机器人 / CommandFilter。
+        # 正常情况 AstrBot 已激活 cmd_flood，这里跳过以免重复应答。
+        if self._looks_like_flood_cmd(event) and not self._cmd_handler_activated(event):
+            async for res in self._run_flood_command(event, ""):
+                yield res
+            event.stop_event()
+            return
+
         # notice events (recall/admin changes/joins) are GROUP_MESSAGE too
         if bool(self.config.get("only_chat_messages", True)):
             raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
@@ -398,7 +406,32 @@ class FloodGuardPlugin(Star):
     # ------------------------------------------------------------------ #
     @filter.command("flood")
     async def cmd_flood(self, event: AstrMessageEvent, args: GreedyStr):
-        tokens = self._flood_tokens(event, str(args))
+        async for res in self._run_flood_command(event, str(args)):
+            yield res
+
+    def _cmd_handler_activated(self, event: AstrMessageEvent) -> bool:
+        """AstrBot 的原生命令处理器是否已被激活（避免兜底重复应答）。"""
+        try:
+            handlers = event.get_extra("activated_handlers", []) or []
+        except Exception:  # noqa: BLE001
+            handlers = []
+        for h in handlers:
+            if "cmd_flood" in (getattr(h, "handler_full_name", "") or ""):
+                return True
+        return False
+
+    @staticmethod
+    def _looks_like_flood_cmd(event: AstrMessageEvent) -> bool:
+        text = (event.message_str or "").strip()
+        for p in ("/", "／"):
+            if text.startswith(p):
+                text = text[1:].strip()
+                break
+        low = text.lower()
+        return low == "flood" or low.startswith("flood ")
+
+    async def _run_flood_command(self, event: AstrMessageEvent, args_text: str):
+        tokens = self._flood_tokens(event, args_text)
         action_token = tokens[0] if tokens else "status"
         action = ACTIONS.get(action_token.lower(), None)
         params = tokens[1:]
