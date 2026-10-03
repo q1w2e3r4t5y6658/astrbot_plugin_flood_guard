@@ -97,7 +97,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.4.2",
+    "v0.4.3",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
