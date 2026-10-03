@@ -39,8 +39,7 @@ PLUGIN_ID = "astrbot_plugin_flood_guard"
 KV_PREFIX = "group_cfg:"
 ANY_KEY = "__any__"
 DEFAULT_TEMPLATE = (
-    "{at} You sent the same message {count} times in {window}s, "
-    "which hit the limit, so you have been muted for {mute_text}."
+    "{at} 你在 {window} 秒内发送了 {count} 条相同消息，达到上限，已被禁言 {mute_text}。"
 )
 
 # keys a group may override
@@ -84,21 +83,21 @@ def human_duration(seconds: int) -> str:
     minutes, secs = divmod(rem, 60)
     parts: list[str] = []
     if days:
-        parts.append(f"{days}d")
+        parts.append(f"{days} 天")
     if hours:
-        parts.append(f"{hours}h")
+        parts.append(f"{hours} 小时")
     if minutes:
-        parts.append(f"{minutes}m")
+        parts.append(f"{minutes} 分钟")
     if secs and not days:
-        parts.append(f"{secs}s")
-    return " ".join(parts) or f"{seconds}s"
+        parts.append(f"{secs} 秒")
+    return " ".join(parts) or f"{seconds} 秒"
 
 
 @register(
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.4.1",
+    "v0.4.2",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -379,7 +378,7 @@ class FloodGuardPlugin(Star):
             "count": str(count),
             "window": str(cfg["window_seconds"]),
             "mute": str(cfg["mute_seconds"]),
-            "mute_text": human_duration(cfg["mute_seconds"]) if muted else "(mute failed)",
+            "mute_text": human_duration(cfg["mute_seconds"]) if muted else "（禁言失败）",
         }
         use_at = "{at}" in template
         text = template.replace("{at}", "")
@@ -417,54 +416,54 @@ class FloodGuardPlugin(Star):
 
         group_id = str(event.get_group_id() or "")
         if not group_id:
-            yield event.plain_result("This command only works in a group chat.")
+            yield event.plain_result("该指令仅在群聊中可用。")
             return
         if not self._can_manage(event):
             yield event.plain_result(
-                "❌ No permission. Only group owner/admins or bot admins may change this group's settings."
+                "❌ 没有权限修改本群设置（需要群主/群管理员或机器人管理员）。"
             )
             return
 
         if action == "reset":
             await self.delete_kv_data(KV_PREFIX + group_id)
-            yield event.plain_result("✅ Cleared this group's overrides; using global defaults.")
+            yield event.plain_result("✅ 已清除本群覆盖，回退全局默认。")
             return
 
         if action == "notice":
             template = " ".join(params).strip()
             if not template:
                 yield event.plain_result(
-                    "Usage: /flood notice {at} stop repeating, muted for {mute_text}"
+                    "用法：/flood notice {at} 别复读了，禁言 {mute_text}"
                 )
                 return
             await self._update_group(group_id, "notify_template", template)
-            yield event.plain_result("✅ This group's notice template updated:\n" + template)
+            yield event.plain_result("✅ 本群播报文案已更新：\n" + template)
             return
 
         if not params or not params[0].lstrip("-").isdigit():
             yield event.plain_result(
-                f"Usage: /flood {action} <number>"
+                f"用法：/flood {action} <数字>"
             )
             return
         value = int(params[0])
         if action == "limit":
             if value < 1:
-                yield event.plain_result("Limit must be at least 1.")
+                yield event.plain_result("阈值至少为 1。")
                 return
             await self._update_group(group_id, "max_messages", value)
-            yield event.plain_result(f"✅ This group's limit is now {value} repeats.")
+            yield event.plain_result(f"✅ 本群阈值已设为 {value} 条（同一条消息重复）。")
         elif action == "window":
             if value < 1:
-                yield event.plain_result("Window must be at least 1 second.")
+                yield event.plain_result("窗口至少为 1 秒。")
                 return
             await self._update_group(group_id, "window_seconds", value)
-            yield event.plain_result(f"✅ This group's window is now {value}s.")
+            yield event.plain_result(f"✅ 本群统计窗口已设为 {value} 秒。")
         elif action == "mute":
             if value < 0:
-                yield event.plain_result("Mute duration cannot be negative.")
+                yield event.plain_result("禁言时长不能为负数。")
                 return
             await self._update_group(group_id, "mute_seconds", value)
-            yield event.plain_result(f"✅ This group's mute duration is now {human_duration(value)}.")
+            yield event.plain_result(f"✅ 本群禁言时长已设为 {human_duration(value)}。")
 
     @staticmethod
     def _flood_tokens(event: AstrMessageEvent, args_text: str) -> list[str]:
@@ -484,36 +483,36 @@ class FloodGuardPlugin(Star):
 
     def _help_text(self) -> str:
         return (
-            "Flood Guard — usage:\n"
-            "/flood status | help\n"
-            "/flood limit <n>   repeats of the same message that trigger a mute\n"
-            "/flood window <s>  counting window in seconds\n"
-            "/flood mute <s>    mute duration in seconds\n"
-            "/flood notice <text>  custom notice, e.g. {at} stop repeating, muted {mute_text}\n"
-            "/flood reset       drop this group's overrides\n"
-            "Placeholders: {at} {user} {user_id} {nickname} {group_id} {count} {window} {mute} {mute_text}"
+            "刷屏守卫 用法（命令为英文）：\n"
+            "/flood status | help        查看本群配置 / 帮助\n"
+            "/flood limit <数字>         同一条消息重复多少条触发禁言\n"
+            "/flood window <秒>          统计窗口\n"
+            "/flood mute <秒>            禁言时长\n"
+            "/flood notice <文案>        自定义本群播报，如 {at} 别复读了，禁言 {mute_text}\n"
+            "/flood reset                清除本群覆盖，回退全局默认\n"
+            "占位符：{at} {user} {user_id} {nickname} {group_id} {count} {window} {mute} {mute_text}"
         )
 
     async def _status_text(self, event: AstrMessageEvent) -> str:
         group_id = str(event.get_group_id() or "")
         if not group_id:
-            return "This command only works in a group chat."
+            return "该指令仅在群聊中可用。"
         cfg = await self._effective_cfg(group_id)
         override = await self.get_kv_data(KV_PREFIX + group_id, None) or {}
         same_only = bool(self.config.get("same_message_only", True))
         only_chat = bool(self.config.get("only_chat_messages", True))
         return "\n".join(
             [
-                f"Flood Guard — group {group_id}",
-                f"mode: {'same message repeated' if same_only else 'any message count'}",
-                f"scope: {'chat messages only' if only_chat else 'including notice events'}",
-                f"window: {cfg['window_seconds']}s",
-                f"limit: {cfg['max_messages']} (trigger when reached)",
-                f"mute: {human_duration(cfg['mute_seconds'])}",
-                f"manage_permission: {self.config.get('manage_permission', 'both')}",
-                f"notice: {cfg['notify_template']}",
-                "overrides: "
-                + (", ".join(override.keys()) if override else "none (global defaults)"),
+                f"刷屏守卫 — 本群 {group_id}",
+                "模式：" + ("同一条消息重复触发" if same_only else "任意消息条数触发"),
+                "统计范围：" + ("仅聊天消息" if only_chat else "含撤回/管理变更等事件"),
+                f"窗口：{cfg['window_seconds']} 秒",
+                f"阈值：{cfg['max_messages']} 条（达到即触发）",
+                f"禁言：{human_duration(cfg['mute_seconds'])}",
+                f"管理权限：{self.config.get('manage_permission', 'both')}",
+                f"播报：{cfg['notify_template']}",
+                "覆盖项："
+                + (", ".join(override.keys()) if override else "无（使用全局默认）"),
             ]
         )
 
