@@ -1,11 +1,11 @@
 name: astrbot_plugin_flood_guard
-display_name: 刷屏守卫
-short_desc: 同一条消息重复刷屏自动禁言，含群管理员权限校验与自定义播报文案
+display_name: 刷屏守卫 / Flood Guard
+short_desc: Mute users who repeat the same message; group-admin aware, custom notice
 desc: |
-  在时间窗口内检测同一条消息的重复次数，达到阈值自动禁言。
-  阈值、统计窗口、禁言时长与播报文案均可在插件配置页设置，
-  也可在 QQ 群内由群管理员/机器人管理员通过 /刷屏 指令对单个群单独覆盖。
-version: v0.3.0
+  Counts repeats of the same message within a time window and mutes when the threshold is reached.
+  Limits, window, mute duration and the notice template can be set on the plugin config page,
+  or overridden per group in QQ via /flood (alias /刷屏) by group admins or bot admins.
+version: v0.4.0
 author: MeowAndy
 repo: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard
-astrbot_version: ">=4.16,<5"
+astrbot_version: ">=4.0,<5"
