@@ -73,7 +73,7 @@
     "type": "text",
     "description": "i18n:config.notify_template.description",
     "hint": "i18n:config.notify_template.hint",
-    "default": "{at} 你在 {window} 秒内发送了 {count} 条相同消息，达到上限，已被禁言 {mute_text}。"
+    "default": "{at} 你在 {window} 秒内发送了 {count} 条消息，达到刷屏阈值：{mute_text}。"
   },
   "manage_permission": {
     "type": "string",

@@ -41,7 +41,7 @@ PLUGIN_ID = "astrbot_plugin_flood_guard"
 KV_PREFIX = "group_cfg:"
 ANY_KEY = "__any__"
 DEFAULT_TEMPLATE = (
-    "{at} 你在 {window} 秒内发送了 {count} 条相同消息，达到上限，已被禁言 {mute_text}。"
+    "{at} 你在 {window} 秒内发送了 {count} 条消息，达到刷屏阈值：{mute_text}。"
 )
 
 # keys a group may override
@@ -106,7 +106,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.5.2",
+    "v0.5.3",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -363,9 +363,10 @@ class FloodGuardPlugin(Star):
 
         muted = await self._mute(event, group_id, user_id, cfg["mute_seconds"])
         logger.info(
-            "[flood_guard] group=%s user=%s repeated same message %s times in %ss, mute %ss -> %s",
+            "[flood_guard] group=%s user=%s mode=%s count=%s in %ss, mute %ss -> %s",
             group_id,
             user_id,
+            "same" if cfg["same_message_only"] else "any",
             count,
             cfg["window_seconds"],
             cfg["mute_seconds"],
@@ -428,7 +429,11 @@ class FloodGuardPlugin(Star):
             "count": str(count),
             "window": str(cfg["window_seconds"]),
             "mute": str(cfg["mute_seconds"]),
-            "mute_text": human_duration(cfg["mute_seconds"]) if muted else "（禁言失败）",
+            "mute_text": (
+                "已被禁言 " + human_duration(cfg["mute_seconds"])
+                if muted
+                else "禁言失败（请检查机器人是否为群管理员）"
+            ),
         }
         use_at = "{at}" in template
         text = template.replace("{at}", "")
