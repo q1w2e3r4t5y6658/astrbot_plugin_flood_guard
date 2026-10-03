@@ -106,7 +106,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.5.3",
+    "v0.5.4",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -306,6 +306,7 @@ class FloodGuardPlugin(Star):
 
         group_id = str(event.get_group_id() or "")
         user_id = str(event.get_sender_id() or "")
+        # 仅群聊：私聊（没有 group_id）一律不触发
         if not group_id or not user_id:
             return
         if user_id == str(event.get_self_id() or ""):
@@ -372,6 +373,18 @@ class FloodGuardPlugin(Star):
             cfg["mute_seconds"],
             "ok" if muted else "failed",
         )
+
+        if not muted:
+            # 禁言失败（通常是机器人不是群管理员）：不在群里播报，只记警告日志
+            logger.warning(
+                "[flood_guard] mute failed; group notice suppressed "
+                "(group=%s user=%s count=%s). Check whether the bot is "
+                "owner/admin in this group.",
+                group_id,
+                user_id,
+                count,
+            )
+            return
 
         if not bool(self.config.get("notify", True)):
             return
@@ -496,7 +509,8 @@ class FloodGuardPlugin(Star):
 
         group_id = str(event.get_group_id() or "")
         if not group_id:
-            yield event.plain_result("该指令仅在群聊中可用。")
+            # 私聊不触发：静默忽略（不回复）
+            logger.debug("[flood_guard] /flood ignored outside group chats")
             return
         if not self._can_manage(event):
             yield event.plain_result(
