@@ -54,12 +54,6 @@
       "description": "额外允许管理本群设置的用户 ID",
       "hint": "不受 manage_permission 限制的白名单"
     },
-    "exempt_admins": {
-      "description": "机器人管理员豁免刷屏检测"
-    },
-    "exempt_group_admins": {
-      "description": "群主/群管理员豁免刷屏检测"
-    },
     "whitelist": {
       "description": "免检测用户 ID 列表"
     }

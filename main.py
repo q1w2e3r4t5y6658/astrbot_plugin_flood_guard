@@ -106,7 +106,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.5.4",
+    "v0.6.0",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -321,10 +321,7 @@ class FloodGuardPlugin(Star):
             event.stop_event()
             return
 
-        if bool(self.config.get("exempt_admins", True)) and self._is_astrbot_admin(event):
-            return
-        if bool(self.config.get("exempt_group_admins", True)) and self._is_group_staff(event):
-            return
+        # 不设任何按身份的豁免：管理员/群主刷屏同样计数、同样禁言。
         if user_id in _as_list(self.config.get("whitelist")):
             return
 

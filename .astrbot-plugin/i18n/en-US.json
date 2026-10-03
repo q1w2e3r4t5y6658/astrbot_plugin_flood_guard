@@ -54,12 +54,6 @@
       "description": "Extra user IDs allowed to manage this group",
       "hint": "Bypasses manage_permission"
     },
-    "exempt_admins": {
-      "description": "Exempt bot admins from detection"
-    },
-    "exempt_group_admins": {
-      "description": "Exempt group owner/admins from detection"
-    },
     "whitelist": {
       "description": "User IDs exempt from detection"
     }
