@@ -1,0 +1,46 @@
+{
+  "metadata": {
+    "display_name": "刷屏守卫",
+    "short_desc": "群刷屏检测与自动禁言，支持全局 + 单群阈值与自定义播报文案",
+    "desc": "群消息频率超过阈值时自动禁言。阈值、统计窗口、禁言时长与播报文案均可在插件配置页设置，也可在 QQ 群内通过 /刷屏 指令对单个群单独覆盖。"
+  },
+  "config": {
+    "enabled": {
+      "description": "启用刷屏检测"
+    },
+    "window_seconds": {
+      "description": "统计窗口（秒）",
+      "hint": "在该时间窗口内统计消息条数"
+    },
+    "max_messages": {
+      "description": "窗口内消息数达到多少条触发禁言",
+      "hint": "达到即触发，建议 8~15"
+    },
+    "mute_seconds": {
+      "description": "禁言时长（秒）",
+      "hint": "0 表示不实际禁言（仅计数与播报）"
+    },
+    "cooldown_seconds": {
+      "description": "同一用户触发后的冷却时间（秒）",
+      "hint": "避免短时间内被反复禁言"
+    },
+    "notify": {
+      "description": "触发后在群里播报"
+    },
+    "notify_template": {
+      "description": "播报文案模板",
+      "hint": "占位符：{at} {user} {user_id} {nickname} {group_id} {count} {window} {mute} {mute_text}"
+    },
+    "exempt_admins": {
+      "description": "管理员豁免"
+    },
+    "whitelist": {
+      "description": "免检测用户 ID 列表"
+    }
+  },
+  "commands": {
+    "flood": {
+      "description": "刷屏守卫指令组"
+    }
+  }
+}

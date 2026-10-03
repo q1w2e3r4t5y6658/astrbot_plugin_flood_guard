@@ -1,0 +1,46 @@
+{
+  "metadata": {
+    "display_name": "Flood Guard",
+    "short_desc": "Detect message flooding and mute automatically; global + per-group thresholds and custom notice text",
+    "desc": "Automatically mutes users who exceed the message threshold. Thresholds, window, mute duration and the notice template can be configured from the plugin page, or overridden per group in QQ via the /刷屏 commands."
+  },
+  "config": {
+    "enabled": {
+      "description": "Enable flood detection"
+    },
+    "window_seconds": {
+      "description": "Counting window (seconds)",
+      "hint": "Messages are counted within this time window"
+    },
+    "max_messages": {
+      "description": "Messages within the window that trigger a mute",
+      "hint": "Triggers when reached; 8-15 recommended"
+    },
+    "mute_seconds": {
+      "description": "Mute duration (seconds)",
+      "hint": "0 means only count and notify, no real mute"
+    },
+    "cooldown_seconds": {
+      "description": "Cooldown per user after triggering (seconds)",
+      "hint": "Avoid repeated mutes in a short time"
+    },
+    "notify": {
+      "description": "Send a notice in the group when triggered"
+    },
+    "notify_template": {
+      "description": "Notice template",
+      "hint": "Placeholders: {at} {user} {user_id} {nickname} {group_id} {count} {window} {mute} {mute_text}"
+    },
+    "exempt_admins": {
+      "description": "Exempt administrators"
+    },
+    "whitelist": {
+      "description": "User IDs exempt from detection"
+    }
+  },
+  "commands": {
+    "flood": {
+      "description": "Flood guard command group"
+    }
+  }
+}

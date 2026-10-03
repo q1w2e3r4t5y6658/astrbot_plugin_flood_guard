@@ -1,0 +1,70 @@
+{
+  "enabled": {
+    "type": "bool",
+    "description": "i18n:config.enabled.description",
+    "default": true
+  },
+  "window_seconds": {
+    "type": "int",
+    "description": "i18n:config.window_seconds.description",
+    "hint": "i18n:config.window_seconds.hint",
+    "default": 5,
+    "slider": {
+      "min": 1,
+      "max": 120,
+      "step": 1
+    }
+  },
+  "max_messages": {
+    "type": "int",
+    "description": "i18n:config.max_messages.description",
+    "hint": "i18n:config.max_messages.hint",
+    "default": 10,
+    "slider": {
+      "min": 2,
+      "max": 100,
+      "step": 1
+    }
+  },
+  "mute_seconds": {
+    "type": "int",
+    "description": "i18n:config.mute_seconds.description",
+    "default": 600,
+    "slider": {
+      "min": 0,
+      "max": 86400,
+      "step": 60
+    }
+  },
+  "cooldown_seconds": {
+    "type": "int",
+    "description": "i18n:config.cooldown_seconds.description",
+    "default": 30,
+    "slider": {
+      "min": 0,
+      "max": 3600,
+      "step": 5
+    }
+  },
+  "notify": {
+    "type": "bool",
+    "description": "i18n:config.notify.description",
+    "default": true
+  },
+  "notify_template": {
+    "type": "text",
+    "description": "i18n:config.notify_template.description",
+    "hint": "i18n:config.notify_template.hint",
+    "default": "{at} 你在 {window} 秒内发送了 {count} 条消息，达到阈值，已被禁言 {mute_text}。"
+  },
+  "exempt_admins": {
+    "type": "bool",
+    "description": "i18n:config.exempt_admins.description",
+    "default": true
+  },
+  "whitelist": {
+    "type": "list",
+    "description": "i18n:config.whitelist.description",
+    "default": []
+  }
+}
