@@ -97,7 +97,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.5.0",
+    "v0.5.1",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -270,19 +270,21 @@ class FloodGuardPlugin(Star):
             return
         if user_id == str(event.get_self_id() or ""):
             return
+
+        # 群内命令兜底：不依赖唤醒前缀 / @机器人 / CommandFilter。
+        # 必须放在“豁免/白名单”判断之前——豁免只针对刷屏检测，
+        # 不应影响任何人使用命令（否则群管理员自己就发不出命令了）。
+        if self._looks_like_flood_cmd(event) and not self._cmd_handler_activated(event):
+            async for res in self._run_flood_command(event, ""):
+                yield res
+            event.stop_event()
+            return
+
         if bool(self.config.get("exempt_admins", True)) and self._is_astrbot_admin(event):
             return
         if bool(self.config.get("exempt_group_admins", True)) and self._is_group_staff(event):
             return
         if user_id in _as_list(self.config.get("whitelist")):
-            return
-
-        # 群内命令兜底：不依赖唤醒前缀 / @机器人 / CommandFilter。
-        # 正常情况 AstrBot 已激活 cmd_flood，这里跳过以免重复应答。
-        if self._looks_like_flood_cmd(event) and not self._cmd_handler_activated(event):
-            async for res in self._run_flood_command(event, ""):
-                yield res
-            event.stop_event()
             return
 
         # notice events (recall/admin changes/joins) are GROUP_MESSAGE too
