@@ -102,10 +102,11 @@ AstrBot 内置的 `PermissionType.ADMIN` **只认机器人全局管理员（`adm
 | `notify_template` | 见下 | 播报文案模板 |
 | `manage_permission` | both | 谁可以改本群设置 |
 | `manage_users` | [] | 额外可管理用户 ID |
+| `exempt_group_admins` | true | 群主/群管理员豁免检测 |
 | `whitelist` | [] | 全局免检测用户 ID（仅配置页可改） |
 
-> **本插件不提供任何按身份的免检测豁免**：群主、群管理员、机器人管理员刷屏一样计数、一样禁言。
-> 唯一的例外是配置页里的全局 `whitelist`（只有机器人主人能改）。
+> 豁免说明：只对**群主/群管理员**豁免（刷屏类插件通行做法，且机器人本身也禁言不了群主）。
+> **不提供**机器人管理员（AstrBot `admins_id`）豁免——谁刷屏都会计数、都会禁言。
 
 默认播报文案：
 

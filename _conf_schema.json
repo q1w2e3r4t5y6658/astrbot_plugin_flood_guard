@@ -93,6 +93,12 @@
     "hint": "i18n:config.manage_users.hint",
     "default": []
   },
+  "exempt_group_admins": {
+    "type": "bool",
+    "description": "i18n:config.exempt_group_admins.description",
+    "hint": "i18n:config.exempt_group_admins.hint",
+    "default": true
+  },
   "whitelist": {
     "type": "list",
     "description": "i18n:config.whitelist.description",
