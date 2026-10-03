@@ -75,9 +75,34 @@
     "hint": "i18n:config.notify_template.hint",
     "default": "{at} 你在 {window} 秒内发送了 {count} 条相同消息，达到阈值，已被禁言 {mute_text}。"
   },
+  "manage_permission": {
+    "type": "string",
+    "description": "i18n:config.manage_permission.description",
+    "hint": "i18n:config.manage_permission.hint",
+    "options": {
+      "both": "群管理员或机器人管理员",
+      "group_admin": "仅群主/群管理员",
+      "astrbot_admin": "仅机器人管理员",
+      "everyone": "所有人（不推荐）"
+    },
+    "default": "both"
+  },
+  "manage_users": {
+    "type": "list",
+    "description": "i18n:config.manage_users.description",
+    "hint": "i18n:config.manage_users.hint",
+    "default": []
+  },
   "exempt_admins": {
     "type": "bool",
     "description": "i18n:config.exempt_admins.description",
+    "hint": "i18n:config.exempt_admins.hint",
+    "default": true
+  },
+  "exempt_group_admins": {
+    "type": "bool",
+    "description": "i18n:config.exempt_group_admins.description",
+    "hint": "i18n:config.exempt_group_admins.hint",
     "default": true
   },
   "whitelist": {

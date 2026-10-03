@@ -1,8 +1,8 @@
 {
   "metadata": {
     "display_name": "Flood Guard",
-    "short_desc": "Mute users who repeat the same message; global + per-group thresholds and custom notice text",
-    "desc": "Counts how many times the same message is repeated within a time window and mutes when the threshold is reached. Thresholds, window, mute duration and the notice template can be configured from the plugin page, or overridden per group in QQ via the /刷屏 commands."
+    "short_desc": "Mute users who repeat the same message; group-admin aware permissions and custom notice text",
+    "desc": "Counts repeats of the same message within a time window and mutes when the threshold is reached. Thresholds, window, mute duration and the notice template can be configured from the plugin page, or overridden per group in QQ by group admins / bot admins via the /刷屏 commands."
   },
   "config": {
     "enabled": {
@@ -17,24 +17,21 @@
       "hint": "When off, notice events (recall, admin changes, joins, poke, etc.) are counted too"
     },
     "window_seconds": {
-      "description": "Counting window (seconds)",
-      "hint": "Repeats of the same message are counted within this window"
+      "description": "Counting window (seconds)"
     },
     "max_messages": {
       "description": "Repeats of the same message that trigger a mute",
       "hint": "Triggers when reached; total message count when same_message_only is off"
     },
     "text_normalize": {
-      "description": "Ignore case and whitespace when comparing text",
-      "hint": "Treats \"hahaha\" and \"ha haha\" as the same message"
+      "description": "Ignore case and whitespace when comparing text"
     },
     "mute_seconds": {
       "description": "Mute duration (seconds)",
       "hint": "0 means only count and notify, no real mute"
     },
     "cooldown_seconds": {
-      "description": "Cooldown per user after triggering (seconds)",
-      "hint": "Avoid repeated mutes in a short time"
+      "description": "Cooldown per user after triggering (seconds)"
     },
     "notify": {
       "description": "Send a notice in the group when triggered"
@@ -43,8 +40,25 @@
       "description": "Notice template",
       "hint": "Placeholders: {at} {user} {user_id} {nickname} {group_id} {count} {window} {mute} {mute_text}"
     },
+    "manage_permission": {
+      "description": "Who may change this group's settings",
+      "hint": "Controls /刷屏 阈值|窗口|禁言|提示|重置",
+      "options": {
+        "both": "Group admins or bot admins",
+        "group_admin": "Group owner/admins only",
+        "astrbot_admin": "Bot admins only",
+        "everyone": "Everyone (not recommended)"
+      }
+    },
+    "manage_users": {
+      "description": "Extra user IDs allowed to manage this group",
+      "hint": "Bypasses manage_permission"
+    },
     "exempt_admins": {
-      "description": "Exempt administrators"
+      "description": "Exempt bot admins from detection"
+    },
+    "exempt_group_admins": {
+      "description": "Exempt group owner/admins from detection"
     },
     "whitelist": {
       "description": "User IDs exempt from detection"

@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.event.filter import EventMessageType, PermissionType
+from astrbot.api.event.filter import EventMessageType
 from astrbot.api.star import Context, Star, register
 
 try:  # 捕获指令剩余全部文本（AstrBot 提供）
@@ -80,7 +80,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "群刷屏检测与自动禁言：同一条消息重复触发，全局 + 单群阈值，可自定义播报文案",
-    "v0.2.0",
+    "v0.3.0",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -136,6 +136,63 @@ class FloodGuardPlugin(Star):
         override[key] = value
         await self.put_kv_data(KV_PREFIX + group_id, override)
         return override
+
+    # ------------------------------------------------------------------ #
+    # 权限：AstrBot 的 PermissionType.ADMIN 只认全局 admins_id，
+    # 且子指令的 event_filters 在唤醒阶段被跳过，所以这里自己做显式校验。
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _sender_group_role(event: AstrMessageEvent) -> str:
+        """读取平台上报的真实群身份：owner / admin / member。"""
+        raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
+        sender = None
+        if hasattr(raw, "get"):
+            try:
+                sender = raw.get("sender")
+            except Exception:  # noqa: BLE001
+                sender = None
+        if sender is None:
+            sender = getattr(raw, "sender", None)
+        if isinstance(sender, dict):
+            role = str(sender.get("role", "") or "").lower()
+            if role:
+                return role
+        return str(getattr(event, "role", "") or "").lower()
+
+    def _is_group_staff(self, event: AstrMessageEvent) -> bool:
+        return self._sender_group_role(event) in ("owner", "admin")
+
+    def _is_astrbot_admin(self, event: AstrMessageEvent) -> bool:
+        uid = str(event.get_sender_id() or "")
+        admins = []
+        try:
+            cfg = self.context.get_config()
+            admins = cfg.get("admins_id", []) if hasattr(cfg, "get") else []
+        except Exception:  # noqa: BLE001
+            admins = []
+        return uid in {str(x) for x in (admins or [])}
+
+    def _can_manage(self, event: AstrMessageEvent) -> bool:
+        """按 manage_permission 策略判断能否修改本群设置。"""
+        uid = str(event.get_sender_id() or "")
+        if uid and uid in _as_list(self.config.get("manage_users")):
+            return True
+        policy = str(self.config.get("manage_permission", "both") or "both").lower()
+        if policy == "everyone":
+            return True
+        if policy == "astrbot_admin":
+            return self._is_astrbot_admin(event)
+        if policy == "group_admin":
+            return self._is_group_staff(event)
+        return self._is_group_staff(event) or self._is_astrbot_admin(event)
+
+    def _deny_msg(self) -> str:
+        return "❌ 没有权限修改本群刷屏设置（需要群主/群管理员或机器人管理员）。"
+
+    def _guard(self, event: AstrMessageEvent):
+        if self._can_manage(event):
+            return None
+        return self._deny_msg()
 
     # ------------------------------------------------------------------ #
     # 「相同消息」签名
@@ -205,7 +262,9 @@ class FloodGuardPlugin(Star):
             return
         if user_id == str(event.get_self_id() or ""):
             return
-        if bool(self.config.get("exempt_admins", True)) and event.is_admin():
+        if bool(self.config.get("exempt_admins", True)) and self._is_astrbot_admin(event):
+            return
+        if bool(self.config.get("exempt_group_admins", True)) and self._is_group_staff(event):
             return
         if user_id in _as_list(self.config.get("whitelist")):
             return
@@ -373,13 +432,17 @@ class FloodGuardPlugin(Star):
             f"阈值：{cfg['max_messages']} 条（达到即禁言）",
             f"禁言：{human_duration(cfg['mute_seconds'])}",
             f"播报：{cfg['notify_template']}",
+            "管理权限：" + str(self.config.get("manage_permission", "both")),
             "覆盖项：" + ("、".join(override.keys()) if override else "无（使用全局默认）"),
         ]
         yield event.plain_result("\n".join(lines))
 
     @flood_group.command("阈值")
-    @filter.permission_type(PermissionType.ADMIN)
     async def cmd_set_max(self, event: AstrMessageEvent, n: int):
+        deny = self._guard(event)
+        if deny:
+            yield event.plain_result(deny)
+            return
         group_id = str(event.get_group_id() or "")
         if not group_id:
             yield event.plain_result("该指令仅在群聊中可用。")
@@ -391,8 +454,11 @@ class FloodGuardPlugin(Star):
         yield event.plain_result(f"✅ 本群阈值已设为 {n} 条（同一条消息重复）。")
 
     @flood_group.command("窗口")
-    @filter.permission_type(PermissionType.ADMIN)
     async def cmd_set_window(self, event: AstrMessageEvent, seconds: int):
+        deny = self._guard(event)
+        if deny:
+            yield event.plain_result(deny)
+            return
         group_id = str(event.get_group_id() or "")
         if not group_id:
             yield event.plain_result("该指令仅在群聊中可用。")
@@ -404,8 +470,11 @@ class FloodGuardPlugin(Star):
         yield event.plain_result(f"✅ 本群统计窗口已设为 {seconds} 秒。")
 
     @flood_group.command("禁言")
-    @filter.permission_type(PermissionType.ADMIN)
     async def cmd_set_mute(self, event: AstrMessageEvent, seconds: int):
+        deny = self._guard(event)
+        if deny:
+            yield event.plain_result(deny)
+            return
         group_id = str(event.get_group_id() or "")
         if not group_id:
             yield event.plain_result("该指令仅在群聊中可用。")
@@ -417,8 +486,11 @@ class FloodGuardPlugin(Star):
         yield event.plain_result(f"✅ 本群禁言时长已设为 {human_duration(seconds)}。")
 
     @flood_group.command("提示")
-    @filter.permission_type(PermissionType.ADMIN)
     async def cmd_set_template(self, event: AstrMessageEvent, text: GreedyStr):
+        deny = self._guard(event)
+        if deny:
+            yield event.plain_result(deny)
+            return
         group_id = str(event.get_group_id() or "")
         if not group_id:
             yield event.plain_result("该指令仅在群聊中可用。")
@@ -433,8 +505,11 @@ class FloodGuardPlugin(Star):
         yield event.plain_result(f"✅ 本群播报文案已更新：\n{template}")
 
     @flood_group.command("重置")
-    @filter.permission_type(PermissionType.ADMIN)
     async def cmd_reset(self, event: AstrMessageEvent):
+        deny = self._guard(event)
+        if deny:
+            yield event.plain_result(deny)
+            return
         group_id = str(event.get_group_id() or "")
         if not group_id:
             yield event.plain_result("该指令仅在群聊中可用。")
