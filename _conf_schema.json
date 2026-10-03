@@ -98,10 +98,5 @@
     "description": "i18n:config.exempt_group_admins.description",
     "hint": "i18n:config.exempt_group_admins.hint",
     "default": true
-  },
-  "whitelist": {
-    "type": "list",
-    "description": "i18n:config.whitelist.description",
-    "default": []
   }
 }

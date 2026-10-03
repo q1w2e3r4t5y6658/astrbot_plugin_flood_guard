@@ -54,9 +54,6 @@
       "description": "Extra user IDs allowed to manage this group",
       "hint": "Bypasses manage_permission"
     },
-    "whitelist": {
-      "description": "User IDs exempt from detection"
-    },
     "exempt_group_admins": {
       "description": "Exempt group owner/admins from detection",
       "hint": "The bot usually cannot mute the group owner anyway"

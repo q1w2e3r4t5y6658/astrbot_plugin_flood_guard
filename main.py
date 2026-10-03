@@ -106,7 +106,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.6.1",
+    "v0.6.2",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -321,11 +321,9 @@ class FloodGuardPlugin(Star):
             event.stop_event()
             return
 
-        # 群主/群管理员豁免检测：刷屏类插件的通行做法，
-        # 而且机器人在 QQ 里本来也禁言不了群主。
+        # 唯一的豁免：群主/群管理员（刷屏类插件的通行做法，
+        # 而且机器人在 QQ 里本来也禁言不了群主）。
         if bool(self.config.get("exempt_group_admins", True)) and self._is_group_staff(event):
-            return
-        if user_id in _as_list(self.config.get("whitelist")):
             return
 
         # notice events (recall/admin changes/joins) are GROUP_MESSAGE too
