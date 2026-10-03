@@ -17,7 +17,9 @@ Note: in group chats the bot must be woken first — either use the wake prefix
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import os
 import re
 import time
 from collections import defaultdict, deque
@@ -43,7 +45,13 @@ DEFAULT_TEMPLATE = (
 )
 
 # keys a group may override
-OVERRIDE_KEYS = ("window_seconds", "max_messages", "mute_seconds", "notify_template")
+OVERRIDE_KEYS = (
+    "same_message_only",
+    "window_seconds",
+    "max_messages",
+    "mute_seconds",
+    "notify_template",
+)
 # context segments ignored when building the "same message" signature
 IGNORED_SEGMENTS = {"Reply"}
 
@@ -54,6 +62,7 @@ ACTIONS = {
     "window": "window",
     "mute": "mute",
     "notice": "notice", "template": "notice",
+    "mode": "mode",
     "reset": "reset", "clear": "reset",
 }
 MEMBER_ACTIONS = {"help", "status"}
@@ -97,7 +106,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.5.1",
+    "v0.5.2",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -141,6 +150,7 @@ class FloodGuardPlugin(Star):
                 value = override.get(key)
                 if value not in (None, ""):
                     cfg[key] = value
+        cfg["same_message_only"] = bool(cfg.get("same_message_only", True))
         cfg["window_seconds"] = max(1, _as_int(cfg["window_seconds"], 5))
         cfg["max_messages"] = max(1, _as_int(cfg["max_messages"], 10))
         cfg["mute_seconds"] = max(0, _as_int(cfg["mute_seconds"], 600))
@@ -211,6 +221,36 @@ class FloodGuardPlugin(Star):
             return re.sub(r"\s+", "", text).lower()
         return text
 
+    @staticmethod
+    def _media_ident(value: str) -> str:
+        """把媒体引用归一化为稳定签名。
+
+        AstrBot 会把图片/视频下载到 /AstrBot/data/temp/media_image_<时间戳>_<随机>.jpg，
+        每次消息的临时路径都不同，直接拿 path 当签名会导致「同一张图」被判成不同消息。
+        因此优先对本地文件做内容 MD5；文件不存在时退化为去掉 query 的 URL/路径。
+        """
+        if not value:
+            return ""
+        path = value[7:] if value.startswith("file://") else value
+        try:
+            if not path.startswith(("http://", "https://")) and os.path.isfile(path):
+                size = os.path.getsize(path)
+                h = hashlib.md5()
+                if size <= 32 * 1024 * 1024:
+                    with open(path, "rb") as f:
+                        for chunk in iter(lambda: f.read(262144), b""):
+                            h.update(chunk)
+                else:  # 超大文件：用大小 + 首尾 1MB
+                    h.update(str(size).encode())
+                    with open(path, "rb") as f:
+                        h.update(f.read(1024 * 1024))
+                        f.seek(-1024 * 1024, os.SEEK_END)
+                        h.update(f.read())
+                return "md5:" + h.hexdigest()
+        except Exception:  # noqa: BLE001
+            pass
+        return value.split("?")[0]
+
     def _component_sig(self, comp) -> str | None:
         ctype = getattr(comp, "type", None)
         name = str(getattr(ctype, "value", ctype) or "")
@@ -225,12 +265,12 @@ class FloodGuardPlugin(Star):
                 or getattr(comp, "path", None)
                 or ""
             )
-            return "i:" + str(ident)
+            return "i:" + self._media_ident(str(ident))
         if name == "Face":
             return "f:" + str(getattr(comp, "id", "") or "")
         if name in ("Record", "Video", "File"):
-            return "m:" + str(
-                getattr(comp, "file", None) or getattr(comp, "url", None) or ""
+            return "m:" + self._media_ident(
+                str(getattr(comp, "file", None) or getattr(comp, "url", None) or "")
             )
         if name in ("Json", "Share", "Music", "Location", "Contact"):
             data = getattr(comp, "data", None) or getattr(comp, "url", None) or ""
@@ -475,6 +515,22 @@ class FloodGuardPlugin(Star):
             yield event.plain_result("✅ 本群播报文案已更新：\n" + template)
             return
 
+        if action == "mode":
+            mode = (params[0].lower() if params else "")
+            if mode == "same":
+                await self._update_group(group_id, "same_message_only", True)
+                yield event.plain_result(
+                    "✅ 本群检测模式：same —— 只有同一条消息重复才计数。"
+                )
+            elif mode == "any":
+                await self._update_group(group_id, "same_message_only", False)
+                yield event.plain_result(
+                    "✅ 本群检测模式：any —— 窗口内任意消息都计数，达到阈值直接禁言。"
+                )
+            else:
+                yield event.plain_result("用法：/flood mode same | any")
+            return
+
         if not params or not params[0].lstrip("-").isdigit():
             yield event.plain_result(
                 f"用法：/flood {action} <数字>"
@@ -486,7 +542,7 @@ class FloodGuardPlugin(Star):
                 yield event.plain_result("阈值至少为 1。")
                 return
             await self._update_group(group_id, "max_messages", value)
-            yield event.plain_result(f"✅ 本群阈值已设为 {value} 条（同一条消息重复）。")
+            yield event.plain_result(f"✅ 本群阈值已设为 {value} 条。")
         elif action == "window":
             if value < 1:
                 yield event.plain_result("窗口至少为 1 秒。")
@@ -520,7 +576,8 @@ class FloodGuardPlugin(Star):
         return (
             "刷屏守卫 用法（命令为英文）：\n"
             "/flood status | help        查看本群配置 / 帮助\n"
-            "/flood limit <数字>         同一条消息重复多少条触发禁言\n"
+            "/flood mode <same|any>      检测模式：同一条消息 / 任意消息\n"
+            "/flood limit <数字>         达到多少条触发禁言\n"
             "/flood window <秒>          统计窗口\n"
             "/flood mute <秒>            禁言时长\n"
             "/flood notice <文案>        自定义本群播报，如 {at} 别复读了，禁言 {mute_text}\n"
