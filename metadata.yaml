@@ -4,8 +4,8 @@ short_desc: Mute users who repeat the same message; group-admin aware, custom no
 desc: |
   Counts repeats of the same message within a time window and mutes when the threshold is reached.
   Limits, window, mute duration and the notice template can be set on the plugin config page,
-  or overridden per group in QQ via /flood (alias /刷屏) by group admins or bot admins.
-version: v0.4.0
+  or overridden per group in QQ via /flood by group admins or bot admins.
+version: v0.4.1
 author: MeowAndy
 repo: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard
 astrbot_version: ">=4.0,<5"

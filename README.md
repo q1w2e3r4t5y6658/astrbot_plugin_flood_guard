@@ -6,7 +6,7 @@ Default mode is **repeater mode**: the *same* message repeated within a window t
 Limits / window / mute duration / notice text can be set on the **plugin config page**,
 or overridden per group inside QQ by **group admins** via the **single flat command** below.
 
-## Commands (single flat command)
+## Commands (single flat command, English only)
 
 In group chats the bot must be woken first: use the **wake prefix** (default `/`) or **@ the bot**.
 
@@ -20,15 +20,12 @@ In group chats the bot must be woken first: use the **wake prefix** (default `/`
 | `/flood notice <text>` | admin | per-group notice template |
 | `/flood reset` | admin | drop this group's overrides |
 
-Chinese aliases work too: `/刷屏 状态|帮助|阈值|窗口|禁言|提示|重置`.
-
-> Example: `/flood limit 5` sets this group's limit to 5 repeats.
-> Example: `/flood notice {at} stop repeating, muted for {mute_text}`
+> Examples: `/flood limit 5` , `/flood notice {at} stop repeating, muted for {mute_text}`
 
 ### Why a single flat command
 
 AstrBot's command **groups** with sub-commands are dispatched by the framework's precompiled
-command tree, and permissions attached to sub-command handlers are skipped during the waking
+command tree, and filters attached to sub-command handlers are skipped during the waking
 stage. A single flat command with manual sub-command parsing is far more reliable across
 AstrBot versions.
 
@@ -103,7 +100,7 @@ Multiple segments are joined (`a|b|c`), so "same text + same image" counts as th
 | `exempt_group_admins` | true | group owner/admins exempt from detection |
 | `whitelist` | [] | user IDs exempt from detection |
 
-Default notice template:
+Default notice template (English):
 
 ```
 {at} You sent the same message {count} times in {window}s, which hit the limit, so you have been muted for {mute_text}.

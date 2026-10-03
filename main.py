@@ -9,7 +9,6 @@ Config sources: the plugin config page (_conf_schema.json) + per-group overrides
 Command entry point is a SINGLE flat command to stay robust across AstrBot versions:
 
     /flood [help|status|limit N|window S|mute S|notice TEXT|reset]
-    /刷屏  [帮助|状态|阈值 N|窗口 S|禁言 S|提示 文案|重置]
 
 Note: in group chats the bot must be woken first — either use the wake prefix
 (default "/") or @ the bot.
@@ -50,13 +49,13 @@ OVERRIDE_KEYS = ("window_seconds", "max_messages", "mute_seconds", "notify_templ
 IGNORED_SEGMENTS = {"Reply"}
 
 ACTIONS = {
-    "help": "help", "帮助": "help", "?": "help",
-    "status": "status", "状态": "status", "info": "status",
-    "limit": "limit", "阈值": "limit", "max": "limit",
-    "window": "window", "窗口": "window",
-    "mute": "mute", "禁言": "mute",
-    "notice": "notice", "提示": "notice", "template": "notice",
-    "reset": "reset", "重置": "reset", "clear": "reset",
+    "help": "help", "?": "help",
+    "status": "status", "info": "status",
+    "limit": "limit", "max": "limit",
+    "window": "window",
+    "mute": "mute",
+    "notice": "notice", "template": "notice",
+    "reset": "reset", "clear": "reset",
 }
 MEMBER_ACTIONS = {"help", "status"}
 
@@ -99,7 +98,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.4.0",
+    "v0.4.1",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -396,9 +395,9 @@ class FloodGuardPlugin(Star):
         return chain
 
     # ------------------------------------------------------------------ #
-    # Single flat command: /flood ...   (alias: /刷屏 ...)
+    # Single flat command: /flood ...
     # ------------------------------------------------------------------ #
-    @filter.command("flood", alias={"刷屏"})
+    @filter.command("flood")
     async def cmd_flood(self, event: AstrMessageEvent, args: GreedyStr):
         tokens = self._flood_tokens(event, str(args))
         action_token = tokens[0] if tokens else "status"
@@ -470,7 +469,7 @@ class FloodGuardPlugin(Star):
     @staticmethod
     def _flood_tokens(event: AstrMessageEvent, args_text: str) -> list[str]:
         """Split the command tail into tokens, tolerating wake prefix/aliases."""
-        names = ("flood", "刷屏")
+        names = ("flood",)
         text = (args_text or "").strip()
         if not text:
             parts = (event.message_str or "").strip().split()
@@ -492,7 +491,6 @@ class FloodGuardPlugin(Star):
             "/flood mute <s>    mute duration in seconds\n"
             "/flood notice <text>  custom notice, e.g. {at} stop repeating, muted {mute_text}\n"
             "/flood reset       drop this group's overrides\n"
-            "Chinese aliases: /刷屏 状态|帮助|阈值|窗口|禁言|提示|重置\n"
             "Placeholders: {at} {user} {user_id} {nickname} {group_id} {count} {window} {mute} {mute_text}"
         )
 
@@ -515,7 +513,7 @@ class FloodGuardPlugin(Star):
                 f"manage_permission: {self.config.get('manage_permission', 'both')}",
                 f"notice: {cfg['notify_template']}",
                 "overrides: "
-                + ("、".join(override.keys()) if override else "none (global defaults)"),
+                + (", ".join(override.keys()) if override else "none (global defaults)"),
             ]
         )
 
