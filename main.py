@@ -45,6 +45,9 @@ DEFAULT_TEMPLATE = (
     "{at} 你在 {window} 秒内发送了 {count} 条消息，达到刷屏阈值：{mute_text}。"
 )
 
+# 生效配置的内存缓存时长（秒）：避免每条群消息都查一次 KV/数据库
+CFG_CACHE_TTL = 30.0
+
 # keys a group may override
 OVERRIDE_KEYS = (
     "same_message_only",
@@ -107,7 +110,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.6.5",
+    "v0.6.6",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -119,6 +122,8 @@ class FloodGuardPlugin(Star):
         )
         # (group_id, user_id) -> cooldown deadline
         self._cooldown: dict[tuple[str, str], float] = {}
+        # group_id -> (deadline, effective config)
+        self._cfg_cache: dict[str, tuple[float, dict]] = {}
         self._cleanup_task: asyncio.Task | None = None
         self._ensure_cleanup()
 
@@ -144,8 +149,14 @@ class FloodGuardPlugin(Star):
         }
 
     async def _effective_cfg(self, group_id: str) -> dict:
+        gid = str(group_id)
+        now = time.monotonic()
+        cached = self._cfg_cache.get(gid)
+        if cached and cached[0] > now:
+            return cached[1]
+
         cfg = self._global_cfg()
-        override = await self.get_kv_data(KV_PREFIX + str(group_id), None)
+        override = await self.get_kv_data(KV_PREFIX + gid, None)
         if isinstance(override, dict):
             for key in OVERRIDE_KEYS:
                 value = override.get(key)
@@ -155,6 +166,7 @@ class FloodGuardPlugin(Star):
         cfg["window_seconds"] = max(1, _as_int(cfg["window_seconds"], 5))
         cfg["max_messages"] = max(1, _as_int(cfg["max_messages"], 10))
         cfg["mute_seconds"] = max(0, _as_int(cfg["mute_seconds"], 600))
+        self._cfg_cache[gid] = (now + CFG_CACHE_TTL, cfg)
         return cfg
 
     async def _update_group(self, group_id: str, key: str, value) -> dict:
@@ -163,6 +175,7 @@ class FloodGuardPlugin(Star):
             override = {}
         override[key] = value
         await self.put_kv_data(KV_PREFIX + group_id, override)
+        self._cfg_cache.pop(str(group_id), None)  # 本群配置已变，立即失效
         return override
 
     # ------------------------------------------------------------------ #
@@ -237,7 +250,7 @@ class FloodGuardPlugin(Star):
             if not path.startswith(("http://", "https://")) and os.path.isfile(path):
                 size = os.path.getsize(path)
                 h = hashlib.md5()
-                if size <= 32 * 1024 * 1024:
+                if size <= 4 * 1024 * 1024:
                     with open(path, "rb") as f:
                         for chunk in iter(lambda: f.read(262144), b""):
                             h.update(chunk)
@@ -286,15 +299,22 @@ class FloodGuardPlugin(Star):
         except Exception:  # noqa: BLE001
             return "o:" + str(comp)
 
-    def _message_key(self, event: AstrMessageEvent, cfg: dict) -> str:
-        # 注意：必须使用“生效配置”（含群级覆盖），否则 /flood mode same|any 不生效
-        if not bool(cfg.get("same_message_only", False)):
-            return ANY_KEY
-        sigs = []
-        for comp in event.get_messages() or []:
+    def _sigs_of(self, comps: list) -> list[str]:
+        """构建签名列表（同步）。媒体要读文件算 MD5，属于阻塞 I/O。"""
+        out: list[str] = []
+        for comp in comps:
             sig = self._component_sig(comp)
             if sig:
-                sigs.append(sig)
+                out.append(sig)
+        return out
+
+    async def _message_key(self, event: AstrMessageEvent, cfg: dict) -> str:
+        # 注意：必须使用“生效配置”（含群级覆盖），否则 /flood mode same|any 不生效
+        if not bool(cfg.get("same_message_only", False)):
+            # 「任意消息」模式：直接返回常量，不遍历消息段、不读文件、不算 MD5
+            return ANY_KEY
+        # 「同一条」模式：媒体哈希是阻塞 I/O，放到线程里，避免卡住事件循环
+        sigs = await asyncio.to_thread(self._sigs_of, list(event.get_messages() or []))
         return "|".join(sigs)
 
     # ------------------------------------------------------------------ #
@@ -334,15 +354,16 @@ class FloodGuardPlugin(Star):
             if isinstance(raw, dict) and raw.get("post_type") not in (None, "message"):
                 return
 
-        cfg = await self._effective_cfg(group_id)
-
-        key = self._message_key(event, cfg)
-        if not key:
-            return
-
+        # 冷却检查提前到这里：纯内存字典查询，不查库、不算签名
         now = time.monotonic()
         cooldown_key = (group_id, user_id)
         if now < self._cooldown.get(cooldown_key, 0.0):
+            return
+
+        cfg = await self._effective_cfg(group_id)
+
+        key = await self._message_key(event, cfg)
+        if not key:
             return
 
         bucket = self._hits[group_id][user_id]
@@ -521,6 +542,7 @@ class FloodGuardPlugin(Star):
 
         if action == "reset":
             await self.delete_kv_data(KV_PREFIX + group_id)
+            self._cfg_cache.pop(str(group_id), None)
             yield event.plain_result("✅ 已清除本群覆盖，回退全局默认。")
             return
 

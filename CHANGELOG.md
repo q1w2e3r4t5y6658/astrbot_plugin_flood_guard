@@ -7,6 +7,19 @@
 
 ---
 
+## [0.6.6] - 2026-10-04
+
+### 性能
+- **省掉每条群消息一次数据库查询**：`_effective_cfg()` 增加 30 秒内存缓存（`/flood` 写操作与 `/flood reset` 会立即失效）。此前**每条群消息**都会 `get_kv_data()` 查一次 KV。
+- **冷却检查提前**：先做纯内存的冷却判断，再取配置——冷却中的用户不再触发任何后续工作。
+- **媒体哈希移出事件循环**：`same` 模式下图片 / 视频的 MD5 改用 `asyncio.to_thread` 在线程池执行，不再阻塞事件循环。
+- 大文件哈希阈值 32MB → 4MB（超过则只采样首尾 1MB，减少磁盘 I/O）。
+
+### 说明
+- 默认的「任意消息」模式热路径开销：**不遍历消息段、不查数据库、不读文件、不算 MD5**，仅做几次内存字典操作。
+
+---
+
 ## [0.6.5] - 2026-10-04
 
 ### 修复
@@ -159,6 +172,7 @@
 
 ---
 
+[0.6.6]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.6.6
 [0.6.5]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.6.5
 [0.6.4]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.6.4
 [0.6.3]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.6.3

@@ -7,7 +7,7 @@ desc: |
   阈值、统计窗口、禁言时长与播报文案可在插件配置页设置，
   也可由群主/群管理员在 QQ 群内通过 /flood 命令对单个群单独覆盖。
   命令为英文，说明文档与群内回复为中文。
-version: 0.6.5
+version: 0.6.6
 author: q1w2e3r4t5y6658
 repo: "https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard"
 astrbot_version: ">=4.0,<5"
