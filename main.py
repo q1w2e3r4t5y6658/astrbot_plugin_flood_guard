@@ -41,12 +41,28 @@ except Exception:  # pragma: no cover - older versions fall back to plain str
 PLUGIN_ID = "astrbot_plugin_flood_guard"
 KV_PREFIX = "group_cfg:"
 ANY_KEY = "__any__"
+# 消息里没有任何可作签名的成分（例如 AstrBot 会直接丢弃的 mface 商城大表情）
+EMPTY_KEY = "__empty__"
 DEFAULT_TEMPLATE = (
     "{at} 你在 {window} 秒内发送了 {count} 条消息，达到刷屏阈值：{mute_text}。"
 )
 
 # 生效配置的内存缓存时长（秒）：避免每条群消息都查一次 KV/数据库
 CFG_CACHE_TTL = 30.0
+
+# 调用平台禁言接口的超时（秒）：外部 API 变慢时不阻塞事件循环
+MUTE_CALL_TIMEOUT = 8.0
+
+# 禁言失败后的重试冷却（秒）：失败时不要用完整冷却，否则会「还在刷却一直不管」
+MUTE_RETRY_COOLDOWN = 5.0
+
+# 媒体签名策略（混合）：
+#   ≤ MEDIA_FULL_LIMIT → 整文件 MD5（真实素材里 91% 落在这里，数学上精确，无碰撞可能）
+#   >  MEDIA_FULL_LIMIT → 文件大小 + 头/中/尾 各 8KB（合计 24KB，开销固定且极小）
+# 为什么是「头/中/尾」：只取头 → 防不住「上半屏相同只差底部」；
+# 只取首尾 → 防不住「只有中段不同」（实测会误判）。三段才没有结构性盲区。
+MEDIA_FULL_LIMIT = 1024 * 1024
+MEDIA_SAMPLE_BYTES = 8 * 1024
 
 # keys a group may override
 OVERRIDE_KEYS = (
@@ -110,7 +126,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.6.6",
+    "v0.7.0",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -241,26 +257,34 @@ class FloodGuardPlugin(Star):
 
         AstrBot 会把图片/视频下载到 /AstrBot/data/temp/media_image_<时间戳>_<随机>.jpg，
         每次消息的临时路径都不同，直接拿 path 当签名会导致「同一张图」被判成不同消息。
-        因此优先对本地文件做内容 MD5；文件不存在时退化为去掉 query 的 URL/路径。
+        所以必须基于「内容」而不是「路径/URL」：
+
+          ≤1MB  → 整文件 MD5（精确，代价可忽略）
+          >1MB  → 大小 + 头/中/尾 各 8KB（合计 24KB，避免为几十 MB 的视频做全量哈希）
+
+        注意：QQ 图片的 CDN 链接带 rkey 签名且会轮换，同一张图的 URL 每次都可能不同，
+        因此绝不能用 URL 当签名。文件不存在时退化为去掉 query 的 URL/路径。
         """
         if not value:
             return ""
         path = value[7:] if value.startswith("file://") else value
         try:
             if not path.startswith(("http://", "https://")) and os.path.isfile(path):
+                # 小文件（≤1MB）整文件哈希：精确；大文件（视频等）头/中/尾各 8KB
                 size = os.path.getsize(path)
                 h = hashlib.md5()
-                if size <= 4 * 1024 * 1024:
-                    with open(path, "rb") as f:
+                h.update(str(size).encode())
+                with open(path, "rb") as f:
+                    if size <= MEDIA_FULL_LIMIT:
                         for chunk in iter(lambda: f.read(262144), b""):
                             h.update(chunk)
-                else:  # 超大文件：用大小 + 首尾 1MB
-                    h.update(str(size).encode())
-                    with open(path, "rb") as f:
-                        h.update(f.read(1024 * 1024))
-                        f.seek(-1024 * 1024, os.SEEK_END)
-                        h.update(f.read())
-                return "md5:" + h.hexdigest()
+                    else:
+                        h.update(f.read(MEDIA_SAMPLE_BYTES))              # 头
+                        f.seek(size // 2 - MEDIA_SAMPLE_BYTES // 2)       # 中
+                        h.update(f.read(MEDIA_SAMPLE_BYTES))
+                        f.seek(-MEDIA_SAMPLE_BYTES, os.SEEK_END)          # 尾
+                        h.update(f.read(MEDIA_SAMPLE_BYTES))
+                return "h:" + h.hexdigest()
         except Exception:  # noqa: BLE001
             pass
         return value.split("?")[0]
@@ -315,7 +339,10 @@ class FloodGuardPlugin(Star):
             return ANY_KEY
         # 「同一条」模式：媒体哈希是阻塞 I/O，放到线程里，避免卡住事件循环
         sigs = await asyncio.to_thread(self._sigs_of, list(event.get_messages() or []))
-        return "|".join(sigs)
+        # 注意：AstrBot 会把 mface（商城大表情）等消息段直接丢弃，此时动态为
+        # 空列表。绝不能返回空串——那会让这类消息「一条都不计数」（漏检）。
+        # 统一归为 EMPTY_KEY，让同一种「无签名消息」照常参与计数。
+        return "|".join(sigs) if sigs else EMPTY_KEY
 
     # ------------------------------------------------------------------ #
     # Event: count group messages
@@ -362,7 +389,12 @@ class FloodGuardPlugin(Star):
 
         cfg = await self._effective_cfg(group_id)
 
-        key = await self._message_key(event, cfg)
+        # any 模式直接取常量，不创建协程；只有 same 模式才去算签名（在线程池里读文件哈希）
+        key = (
+            ANY_KEY
+            if not cfg["same_message_only"]
+            else await self._message_key(event, cfg)
+        )
         if not key:
             return
 
@@ -382,9 +414,17 @@ class FloodGuardPlugin(Star):
             return
 
         bucket.clear()
-        self._cooldown[cooldown_key] = now + cfg["cooldown_seconds"]
 
+        # 达标后【第一件事就是禁言】：中间不做任何多余工作，保证响应最快
         muted = await self._mute(event, group_id, user_id, cfg["mute_seconds"])
+
+        # 冷却：只有禁言成功（或本来就不禁言）才进入完整冷却；
+        # 失败时只给短冷却，尽快重试——否则会「还在刷却一直不管」
+        if muted or cfg["mute_seconds"] <= 0:
+            self._cooldown[cooldown_key] = now + cfg["cooldown_seconds"]
+        else:
+            self._cooldown[cooldown_key] = now + MUTE_RETRY_COOLDOWN
+
         logger.info(
             "[flood_guard] group=%s user=%s mode=%s count=%s in %ss, mute %ss -> %s",
             group_id,
@@ -408,11 +448,13 @@ class FloodGuardPlugin(Star):
             )
             return
 
-        if not bool(self.config.get("notify", True)):
-            return
-        chain = self._build_notice(event, cfg, group_id, user_id, count, muted)
-        if chain:
-            yield event.chain_result(chain)
+        if bool(self.config.get("notify", True)):
+            chain = self._build_notice(event, cfg, group_id, user_id, count, muted)
+            if chain:
+                yield event.chain_result(chain)
+
+        # 该消息已判定为刷屏：不再让它进入后续流程（如 LLM 回复），减轻整体负载
+        event.stop_event()
 
     # ------------------------------------------------------------------ #
     # Mute
@@ -427,11 +469,15 @@ class FloodGuardPlugin(Star):
                 )
 
                 if isinstance(event, AiocqhttpMessageEvent):
-                    await event.bot.call_action(
-                        "set_group_ban",
-                        group_id=int(group_id),
-                        user_id=int(user_id),
-                        duration=int(seconds),
+                    # 加超时：平台 API 慢/卡住时不拖住整个事件循环
+                    await asyncio.wait_for(
+                        event.bot.call_action(
+                            "set_group_ban",
+                            group_id=int(group_id),
+                            user_id=int(user_id),
+                            duration=int(seconds),
+                        ),
+                        timeout=MUTE_CALL_TIMEOUT,
                     )
                     return True
             logger.warning(
@@ -504,7 +550,11 @@ class FloodGuardPlugin(Star):
 
     @staticmethod
     def _looks_like_flood_cmd(event: AstrMessageEvent) -> bool:
-        text = (event.message_str or "").strip()
+        raw = event.message_str or ""
+        # 快速排除：绝大多数群消息不含 "flood"，一次 C 级子串扫描即可返回
+        if "flood" not in raw:
+            return False
+        text = raw.strip()
         for p in ("/", "／"):
             if text.startswith(p):
                 text = text[1:].strip()

@@ -31,7 +31,7 @@
     "type": "int",
     "description": "i18n:config.max_messages.description",
     "hint": "i18n:config.max_messages.hint",
-    "default": 10,
+    "default": 6,
     "slider": {
       "min": 2,
       "max": 100,

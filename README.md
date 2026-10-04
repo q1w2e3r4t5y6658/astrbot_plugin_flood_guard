@@ -86,7 +86,7 @@ AstrBot 的**指令组 + 子指令**由框架预编译的指令树分发，且�
 | `same_message_only` | false | true=只统计同一条消息；false=统计任意消息条数 |
 | `only_chat_messages` | true | 只统计聊天消息 |
 | `window_seconds` | 5 | 统计窗口（秒） |
-| `max_messages` | 10 | 达到多少条触发禁言 |
+| `max_messages` | 6 | 达到多少条触发禁言（默认 5 秒 6 条即判定为刷屏） |
 | `text_normalize` | true | 忽略大小写/空白 |
 | `mute_seconds` | 600 | 禁言时长（秒），0 表示只计数不实际禁言 |
 | `cooldown_seconds` | 30 | 同一用户触发后的冷却 |
