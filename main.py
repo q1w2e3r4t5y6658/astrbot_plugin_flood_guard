@@ -58,11 +58,13 @@ MUTE_RETRY_COOLDOWN = 5.0
 
 # 媒体签名策略（混合）：
 #   ≤ MEDIA_FULL_LIMIT → 整文件 MD5（真实素材里 91% 落在这里，数学上精确，无碰撞可能）
-#   >  MEDIA_FULL_LIMIT → 文件大小 + 头/中/尾 各 8KB（合计 24KB，开销固定且极小）
+#   >  MEDIA_FULL_LIMIT → 文件大小 + 头/中/尾 各约 170KB（合计 512KB，开销固定）
 # 为什么是「头/中/尾」：只取头 → 防不住「上半屏相同只差底部」；
 # 只取首尾 → 防不住「只有中段不同」（实测会误判）。三段才没有结构性盲区。
 MEDIA_FULL_LIMIT = 1024 * 1024
-MEDIA_SAMPLE_BYTES = 8 * 1024
+# 大文件的采样总预算：512KB，平均分成「头 / 中 / 尾」三段
+MEDIA_SAMPLE_TOTAL = 512 * 1024
+MEDIA_SAMPLE_BYTES = MEDIA_SAMPLE_TOTAL // 3
 
 # keys a group may override
 OVERRIDE_KEYS = (
@@ -126,7 +128,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.7.0",
+    "v0.7.1",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -270,7 +272,7 @@ class FloodGuardPlugin(Star):
         path = value[7:] if value.startswith("file://") else value
         try:
             if not path.startswith(("http://", "https://")) and os.path.isfile(path):
-                # 小文件（≤1MB）整文件哈希：精确；大文件（视频等）头/中/尾各 8KB
+                # 小文件（≤1MB）整文件哈希：精确；大文件（视频等）头/中/尾各约 170KB（合计 512KB）
                 size = os.path.getsize(path)
                 h = hashlib.md5()
                 h.update(str(size).encode())

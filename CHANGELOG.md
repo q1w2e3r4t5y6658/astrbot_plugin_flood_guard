@@ -7,6 +7,26 @@
 
 ---
 
+## [0.7.1] - 2026-10-05
+
+### 变更
+- `same` 模式下**大文件（>1MB）的内容签名采样预算从 24KB 提升到 512KB**（头 / 中 / 尾各约 170KB），进一步降低大文件被误判为「同一条」的概率；`≤1MB` 仍走整文件 MD5。
+
+### 文档
+- README 新增 **「为什么禁言会有几秒延迟？」**，用实测数据交代延迟来源（一次真实触发）：
+
+  | 环节 | 实测 | 占比 |
+  |---|---|---|
+  | AstrBot 管道（事件派发 → 插件拿到消息） | **5.75 s** | 76% |
+  | 禁言接口往返（AstrBot → 适配器 → QQ） | **1.89 s** | 24% |
+  | 插件自身逻辑 | **0.005 s** | 0.07% |
+
+  并说明：插件只能在 `ProcessStage` 运行，前面 `WakingCheck → … → PreProcess` 各阶段的耗时都会累加到触发时刻；`WakingCheckStage` 要跑所有插件的过滤器，会话限流 `rate_limit` 的 `discard` 策略还会直接丢掉事件（插件根本看不到）。
+  可执行的提速方向：减少该群插件数量、调低 `max_messages`、检查 `rate_limit.strategy`。
+- README 澄清**媒体签名为什么必须基于内容**：QQ 图片 CDN 链接带动态轮换的 `rkey` 签名，AstrBot 又会把图下载到随机临时路径 —— 拿 URL/路径当签名会把「同一张图」判成不同消息。
+
+---
+
 ## [0.7.0] - 2026-10-04
 
 ### 变更（影响行为）
@@ -197,6 +217,7 @@
 
 ---
 
+[0.7.1]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.7.1
 [0.7.0]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.7.0
 [0.6.6]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.6.6
 [0.6.5]: https://github.com/q1w2e3r4t5y6658/astrbot_plugin_flood_guard/releases/tag/v0.6.5
