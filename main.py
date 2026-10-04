@@ -107,7 +107,7 @@ def human_duration(seconds: int) -> str:
     PLUGIN_ID,
     "MeowAndy",
     "Flood guard: mute users who repeat the same message; global + per-group limits, custom notice",
-    "v0.6.4",
+    "v0.6.5",
 )
 class FloodGuardPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -286,8 +286,9 @@ class FloodGuardPlugin(Star):
         except Exception:  # noqa: BLE001
             return "o:" + str(comp)
 
-    def _message_key(self, event: AstrMessageEvent) -> str:
-        if not bool(self.config.get("same_message_only", False)):
+    def _message_key(self, event: AstrMessageEvent, cfg: dict) -> str:
+        # 注意：必须使用“生效配置”（含群级覆盖），否则 /flood mode same|any 不生效
+        if not bool(cfg.get("same_message_only", False)):
             return ANY_KEY
         sigs = []
         for comp in event.get_messages() or []:
@@ -333,11 +334,12 @@ class FloodGuardPlugin(Star):
             if isinstance(raw, dict) and raw.get("post_type") not in (None, "message"):
                 return
 
-        key = self._message_key(event)
+        cfg = await self._effective_cfg(group_id)
+
+        key = self._message_key(event, cfg)
         if not key:
             return
 
-        cfg = await self._effective_cfg(group_id)
         now = time.monotonic()
         cooldown_key = (group_id, user_id)
         if now < self._cooldown.get(cooldown_key, 0.0):
